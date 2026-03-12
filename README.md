@@ -12,7 +12,7 @@ Dataset sous-samplé à ~300 cellules à des fins pédagogiques.
 | `pbmc_R1.fastq.gz` | Barcode (16bp) + UMI (12bp) = 28bp | Zenodo 3457880 |
 | `pbmc_R2.fastq.gz` | cDNA = 91bp | Zenodo 3457880 |
 
-> **Note :** On utilise uniquement le chromosome 21 (hg38) pour réduire le temps de calcul. Pour une analyse en production, utiliser le génome complet.
+> **Note :** On utilise uniquement le chromosome 21 (hg38) pour réduire le temps de calcul. 
 
 ## Pipeline
 
@@ -30,16 +30,7 @@ FASTQ bruts (R1 = barcode+UMI, R2 = cDNA)
          └── matrix.mtx     Counts UMI (format sparse)
 ```
 
-## Différences clés avec le bulk RNAseq
 
-| | Bulk RNAseq | scRNA-seq (ce pipeline) |
-|---|---|---|
-| **Unité d'analyse** | Échantillon entier | Cellule individuelle |
-| **Structure R1/R2** | cDNA + cDNA | Barcode+UMI + cDNA |
-| **Outil de comptage** | featureCounts | STARsolo (intégré) |
-| **Format de sortie** | TSV dense (gènes × échantillons) | MTX sparse (gènes × cellules) |
-| **Gestion des duplicats** | Non | UMI dédupliqués automatiquement |
-| **Filtrage** | N/A | raw → filtered (vraies cellules) |
 
 ## Arborescence
 
@@ -58,33 +49,14 @@ FASTQ bruts (R1 = barcode+UMI, R2 = cDNA)
 └── logs/                   Logs de chaque étape
 ```
 
-## Installation
 
-### Prérequis
+## Prérequis
 
-- Miniconda
-- Linux ou WSL (Ubuntu)
-- 4 cœurs, 8 Go RAM minimum
+WSL (Ubuntu)
+4 cœurs, 8 Go RAM minimum
 
-### Créer les environnements
 
-```bash
-# Environnement principal
-conda env create -f environment.yml
-conda activate scrnaseq
 
-# MultiQC (environnement séparé — conflits de dépendances)
-conda create -n multiqc -c conda-forge python=3.11 -y
-conda activate multiqc
-pip install multiqc
-```
-
-## Utilisation
-
-```bash
-conda activate scrnaseq
-bash pipeline.sh
-```
 
 ## Résultats obtenus
 
@@ -97,24 +69,8 @@ bash pipeline.sh
 | STARsolo | Gènes détectés (chr21) | 316 |
 | STARsolo | UMI médian par cellule | 280 |
 
-## Prochaine étape
 
-La matrice `results/matrix/filtered/` peut être chargée directement dans :
-
-```r
-# Seurat (R)
-library(Seurat)
-pbmc <- Read10X("results/matrix/filtered/")
-seurat_obj <- CreateSeuratObject(counts = pbmc)
-```
-
-```python
-# Scanpy (Python)
-import scanpy as sc
-adata = sc.read_10x_mtx("results/matrix/filtered/")
-```
-
-## Notes pédagogiques
+## Notes 
 
 - **R1 en second dans STARsolo** : contrairement au bulk, STARsolo attend `--readFilesIn R2 R1` (cDNA d'abord, barcode ensuite)
 - **Whitelist 10x v3** : liste des 6,7 millions de barcodes valides 10x Chromium v3 — indispensable pour le démultiplexage
