@@ -8,10 +8,9 @@
 #               R1 = 28bp (16bp barcode + 12bp UMI)
 #               R2 = 91bp (cDNA)
 # =============================================================================
-
+# Création des dossiers
 mkdir -p ~/scrnaseq_exercise/{data/{raw,trimmed,genome},results/{qc,alignments,matrix},scripts,logs}
-
-
+#Recup des données 10x genomics : pbmc est un jeu classique
 cd ~/scrnaseq_exercise/data/raw/
 wget -q --show-progress \
     "https://zenodo.org/records/3457880/files/subset_pbmc_1k_v3_S1_L001_R1_001.fastq.gz" \
@@ -20,30 +19,15 @@ wget -q --show-progress \
     "https://zenodo.org/records/3457880/files/subset_pbmc_1k_v3_S1_L001_R2_001.fastq.gz" \
     -O pbmc_R2.fastq.gz
 
-# Vérification des longueurs
-echo "Longueur R1 (attendu : 28bp) :"
-zcat pbmc_R1.fastq.gz | awk 'NR==2{print length($0), "bp"; exit}'
-echo "Longueur R2 (attendu : 91bp) :"
-zcat pbmc_R2.fastq.gz | awk 'NR==2{print length($0), "bp"; exit}'
-
-
-
-
-# ÉTAPE 2 — Contrôle qualité (FastQC + MultiQC)
-
-
-
-zcat ~/scrnaseq_exercise/data/raw/pbmc_R1.fastq.gz \
-    > ~/scrnaseq_exercise/data/raw/pbmc_R1_tmp.fastq
-zcat ~/scrnaseq_exercise/data/raw/pbmc_R2.fastq.gz \
-    > ~/scrnaseq_exercise/data/raw/pbmc_R2_tmp.fastq
-
+# Contrôle qualité (FastQC + MultiQC)
+#décompresse les fastq en temporaire, fais le qc puis les effaces pour en garder que les ficheirs comrpéssés
+zcat ~/scrnaseq_exercise/data/raw/pbmc_R1.fastq.gz > ~/scrnaseq_exercise/data/raw/pbmc_R1_tmp.fastq
+zcat ~/scrnaseq_exercise/data/raw/pbmc_R2.fastq.gz > ~/scrnaseq_exercise/data/raw/pbmc_R2_tmp.fastq
 fastqc \
     ~/scrnaseq_exercise/data/raw/pbmc_R1_tmp.fastq \
     ~/scrnaseq_exercise/data/raw/pbmc_R2_tmp.fastq \
     --outdir ~/scrnaseq_exercise/results/qc/ \
     --threads 4
-
 rm ~/scrnaseq_exercise/data/raw/pbmc_R1_tmp.fastq \
    ~/scrnaseq_exercise/data/raw/pbmc_R2_tmp.fastq
 
@@ -55,14 +39,9 @@ conda run -n multiqc multiqc \
 
 # explorer.exe . ~/scrnaseq_exercise/results/qc/   
 
-
-
-
 # Trimming avec fastp
 # NOTE : R1 (barcode+UMI) ne doit PAS être modifié
 #        Seul R2 (cDNA) est trimmé des adaptateurs
-
-
 
 fastp \
     --in1  ~/scrnaseq_exercise/data/raw/pbmc_R1.fastq.gz \
@@ -77,21 +56,17 @@ fastp \
     --length_required 20 \
     2> ~/scrnaseq_exercise/logs/pbmc_fastp.log
 
-
-
-# ÉTAPE 4 — Téléchargement du génome et de l'annotation
-# NOTE : On utilise uniquement chr21 pour rester léger sur un portable
-
-
+# Téléchargement du génome et de l'annotation
+#  On utilise uniquement chr21 pour rester léger sur un portable
 
 # Génome hg38 chr21 (UCSC)
 wget -q --show-progress \
     "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr21.fa.gz" \
     -O ~/scrnaseq_exercise/data/genome/hg38_chr21.fa.gz
+
 gunzip ~/scrnaseq_exercise/data/genome/hg38_chr21.fa.gz
 
-
-# UCSC utilise "chr21", Ensembl utilise "21" → on corrige avec sed
+# UCSC utilise "chr21", Ensembl utilise "21" 
 wget -q --show-progress \
     "https://ftp.ensembl.org/pub/release-109/gtf/homo_sapiens/Homo_sapiens.GRCh38.109.chr.gtf.gz" \
     -O ~/scrnaseq_exercise/data/genome/hg38.gtf.gz
@@ -132,8 +107,6 @@ wget -q --show-progress \
 
 gunzip ~/scrnaseq_exercise/data/genome/whitelist_10x_v3.txt.gz
 
-echo "Nombre de barcodes dans la whitelist :"
-wc -l ~/scrnaseq_exercise/data/genome/whitelist_10x_v3.txt
 
 # Alignement et comptage avec STARsolo
 
@@ -147,13 +120,13 @@ wc -l ~/scrnaseq_exercise/data/genome/whitelist_10x_v3.txt
 STAR \
     --runThreadN 4 \
     --genomeDir ~/scrnaseq_exercise/data/genome/star_index \
-    --readFilesIn ~/scrnaseq_exercise/data/trimmed/pbmc_R2_trimmed.fastq.gz \
-                  ~/scrnaseq_exercise/data/trimmed/pbmc_R1_trimmed.fastq.gz \
-    --readFilesCommand zcat \
-    --soloType CB_UMI_Simple \
+    --readFilesIn ~/scrnaseq_exercise/data/trimmed/pbmc_R2_trimmed.fastq.gz \                #R2 = sequence à aligner
+                  ~/scrnaseq_exercise/data/trimmed/pbmc_R1_trimmed.fastq.gz \               #R1 = barcode + UMI
+    --readFilesCommand zcat \                                                                #décompresse els fichiers
+    --soloType CB_UMI_Simple \                                                               # car singel cell
     --soloCBwhitelist ~/scrnaseq_exercise/data/genome/whitelist_10x_v3.txt \
-    --soloCBstart 1 --soloCBlen 16 \
-    --soloUMIstart 17 --soloUMIlen 12 \
+    --soloCBstart 1 --soloCBlen 16 \                                                          #positon du barcode : commence en 1 et et comprend 16 base
+    --soloUMIstart 17 --soloUMIlen 12 \                                                       #posiiton UMI : commence en 17, comprends 12 abses
     --outSAMtype BAM SortedByCoordinate \
     --outSAMattributes NH HI AS NM CB UB \
     --outFileNamePrefix ~/scrnaseq_exercise/results/alignments/pbmc_ \
@@ -166,14 +139,19 @@ STAR \
 cat ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/Summary.csv
 
 
-echo "--- Matrice filtrée (vraies cellules) ---"
-echo "Cellules détectées :"
-wc -l ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/filtered/barcodes.tsv
-echo "Gènes détectés :"
-wc -l ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/filtered/features.tsv
-echo "Dimensions de la matrice :"
-head -n 3 ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/filtered/matrix.mtx
+#echo "--- Matrice filtrée (vraies cellules) ---"
+#echo "Cellules détectées :"
+#wc -l ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/filtered/barcodes.tsv
+#echo "Gènes détectés :"
+#wc -l ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/filtered/features.tsv
+#echo "Dimensions de la matrice :"
+#head -n 3 ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/filtered/matrix.mtx
 
 # Copie de la matrice finale dans results/matrix/
 cp -r ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/filtered/ \
       ~/scrnaseq_exercise/results/matrix/
+
+
+gzip barcodes.tsv
+gzip features.tsv
+gzip matrix.mtx
