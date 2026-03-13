@@ -8,6 +8,8 @@
 #               R1 = 28bp (16bp barcode + 12bp UMI)
 #               R2 = 91bp (cDNA)
 # =============================================================================
+set -euo pipefail
+
 # Création des dossiers
 mkdir -p ~/scrnaseq_exercise/{data/{raw,trimmed,genome},results/{qc,alignments,matrix},scripts,logs}
 #Recup des données 10x genomics : pbmc est un jeu classique
@@ -53,7 +55,8 @@ fastp \
     --thread 4 \
     --detect_adapter_for_pe \
     --disable_quality_filtering \
-    --length_required 20 \
+    --length_required 20 \                                        
+    #length_required 15 pour du singel nuclei
     2> ~/scrnaseq_exercise/logs/pbmc_fastp.log
 
 # Téléchargement du génome et de l'annotation
@@ -120,13 +123,19 @@ gunzip ~/scrnaseq_exercise/data/genome/whitelist_10x_v3.txt.gz
 STAR \
     --runThreadN 4 \
     --genomeDir ~/scrnaseq_exercise/data/genome/star_index \
-    --readFilesIn ~/scrnaseq_exercise/data/trimmed/pbmc_R2_trimmed.fastq.gz \                #R2 = sequence à aligner
-                  ~/scrnaseq_exercise/data/trimmed/pbmc_R1_trimmed.fastq.gz \               #R1 = barcode + UMI
-    --readFilesCommand zcat \                                                                #décompresse els fichiers
-    --soloType CB_UMI_Simple \                                                               # car singel cell
+    --readFilesIn ~/scrnaseq_exercise/data/trimmed/pbmc_R2_trimmed.fastq.gz \                
+    #R2 = sequence à aligner
+                  ~/scrnaseq_exercise/data/trimmed/pbmc_R1_trimmed.fastq.gz \               
+                #R1 = barcode + UMI
+    --readFilesCommand zcat \                                                                
+    #décompresse els fichiers
+    --soloType CB_UMI_Simple \                                                               
+    # car singel cell
     --soloCBwhitelist ~/scrnaseq_exercise/data/genome/whitelist_10x_v3.txt \
-    --soloCBstart 1 --soloCBlen 16 \                                                          #positon du barcode : commence en 1 et et comprend 16 base
-    --soloUMIstart 17 --soloUMIlen 12 \                                                       #posiiton UMI : commence en 17, comprends 12 abses
+    --soloCBstart 1 --soloCBlen 16 \                                                          
+    #positon du barcode : commence en 1 et et comprend 16 base
+    --soloUMIstart 17 --soloUMIlen 12 \                                                        
+    #posiiton UMI : commence en 17, comprends 12 abses 
     --outSAMtype BAM SortedByCoordinate \
     --outSAMattributes NH HI AS NM CB UB \
     --outFileNamePrefix ~/scrnaseq_exercise/results/alignments/pbmc_ \
@@ -134,7 +143,23 @@ STAR \
 
 
 
+# Pour singel nuclei :
 
+#STAR \
+ #   --runThreadN 4 \
+  #  --genomeDir ~/scrnaseq_exercise/data/genome/star_index \
+   # --readFilesIn ~/scrnaseq_exercise/data/trimmed/pbmc_R2_trimmed.fastq.gz \
+    #              ~/scrnaseq_exercise/data/trimmed/pbmc_R1_trimmed.fastq.gz \
+    #--readFilesCommand zcat \
+    #--soloType CB_UMI_Simple \
+    #--soloCBwhitelist ~/scrnaseq_exercise/data/genome/whitelist_10x_v3.txt \
+    #--soloCBstart 1 --soloCBlen 16 \
+    #--soloUMIstart 17 --soloUMIlen 12 \
+    #--soloFeatures GeneFull \
+    #--outSAMtype BAM SortedByCoordinate \
+    #--outSAMattributes NH HI AS NM CB UB \
+    #--outFileNamePrefix ~/scrnaseq_exercise/results/alignments/snrnaseq_ \
+    #2> ~/scrnaseq_exercise/logs/snrnaseq_star.log
 
 cat ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/Summary.csv
 
@@ -149,9 +174,10 @@ cat ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/Summary.csv
 
 # Copie de la matrice finale dans results/matrix/
 cp -r ~/scrnaseq_exercise/results/alignments/pbmc_Solo.out/Gene/filtered/ \
-      ~/scrnaseq_exercise/results/matrix/
+      ~/scrnaseq_exercise/results/matrix/                                                                            
+      #GeneFull pour singlenuclei
 
 
-gzip barcodes.tsv
-gzip features.tsv
-gzip matrix.mtx
+gzip ~/scrnaseq_exercise/results/matrix/filtered/barcodes.tsv
+gzip ~/scrnaseq_exercise/results/matrix/filtered/features.tsv
+gzip ~/scrnaseq_exercise/results/matrix/filtered/matrix.mtx
